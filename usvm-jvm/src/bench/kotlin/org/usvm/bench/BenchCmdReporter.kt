@@ -3,6 +3,7 @@ package org.usvm.bench
 import mu.KLogging
 import org.jacodb.api.jvm.JcClassOrInterface
 import org.jacodb.api.jvm.JcMethod
+import org.jacodb.api.jvm.ext.humanReadableSignature
 import org.usvm.UMachineOptions
 import org.usvm.machine.JcMachineOptions
 import org.usvm.machine.state.JcState
@@ -36,7 +37,7 @@ object BenchCmdReporter : BenchStatisticsReporter {
         statesInPathSelector: Int
     ) {
         val result = StringBuilder().apply {
-            appendLine("METHOD EXPLORATION STATS: ${jcMethod.enclosingClass}.${jcMethod.name}")
+            appendLine("METHOD EXPLORATION STATS: ${jcMethod.humanReadableSignature}")
             appendLine("\tMilliseconds elapsed: $timeElapsedMillis")
             appendLine("\tSuccessful states: ${states.filterNot { it.isExceptional }.size}")
             appendLine("\tExceptional states: ${states.filter { it.isExceptional }.size}")
@@ -77,7 +78,7 @@ object BenchCmdReporter : BenchStatisticsReporter {
 
     override fun reportInternalFailure(jcMethod: JcMethod, e: Throwable, configId: String) {
         logger.error {
-            "INTERNAL FAIL:  ${jcMethod.enclosingClass}.${jcMethod.name}\n$e"
+            "INTERNAL FAIL:  ${jcMethod.humanReadableSignature}\n$e"
         }
     }
 }

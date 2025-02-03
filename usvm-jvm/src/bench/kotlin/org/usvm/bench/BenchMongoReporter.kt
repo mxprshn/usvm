@@ -4,11 +4,11 @@ import com.mongodb.kotlin.client.coroutine.MongoClient
 import kotlinx.coroutines.runBlocking
 import org.jacodb.api.jvm.JcClassOrInterface
 import org.jacodb.api.jvm.JcMethod
+import org.jacodb.api.jvm.ext.humanReadableSignature
 import org.usvm.PathSelectionStrategy
 import org.usvm.PathSelectorCombinationStrategy
 import org.usvm.PathSelectorFairnessStrategy
 import org.usvm.UMachineOptions
-import org.usvm.bench.project.MethodId
 import org.usvm.machine.JcMachineOptions
 import org.usvm.machine.state.JcState
 import java.util.*
@@ -126,7 +126,7 @@ class BenchMongoReporter(private val databaseName: String, host: String = "local
     ) {
         val record = BenchResultRecord(
             configId,
-            MethodId(jcMethod).encodedString,
+            jcMethod.humanReadableSignature,
             jcMethod.rawInstList.size,
             states.filterNot { it.isExceptional }.size,
             states.filter { it.isExceptional }.size,
@@ -154,7 +154,7 @@ class BenchMongoReporter(private val databaseName: String, host: String = "local
         val record = ClassBenchResultRecord(
             configId,
             jcClass.name,
-            jcMethods.map { MethodId(it).encodedString },
+            jcMethods.map { it.humanReadableSignature },
             states.filterNot { it.isExceptional }.size,
             states.filter { it.isExceptional }.size,
             timeElapsedMillis,
@@ -171,7 +171,7 @@ class BenchMongoReporter(private val databaseName: String, host: String = "local
     override fun reportInternalFailure(jcMethod: JcMethod, e: Throwable, configId: String) {
         val record = BenchInternalFailureRecord(
             configId,
-            MethodId(jcMethod).encodedString,
+            jcMethod.humanReadableSignature,
             "$e ${e.stackTraceToString()}"
         )
         runBlocking {

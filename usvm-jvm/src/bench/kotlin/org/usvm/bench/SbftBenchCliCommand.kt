@@ -30,7 +30,7 @@ import org.usvm.CoverageZone
 import org.usvm.PathSelectionStrategy
 import org.usvm.PathSelectorFairnessStrategy
 import org.usvm.UMachineOptions
-import org.usvm.bench.project.MethodId
+import org.usvm.bench.project.getFqnFromHrs
 import org.usvm.machine.JcMachineOptions
 import org.usvm.machine.interpreter.transformers.JcStringConcatTransformer
 import org.usvm.util.classpathWithApproximations
@@ -61,8 +61,7 @@ class SbftBenchCliCommand : CliktCommand() {
 
     val className by option("-c", help = "FQN of specific class to run benchmark on")
 
-    val methodId by option("-m", help = "Id of specific method to run benchmark on")
-        .convert { MethodId.decodeFromString(it) }
+    val methodHrs by option("-m", help = "Human-readable signature of specific method to run benchmark on")
 
     val checkpointClassName by option("--checkpoint", help = "If specified, bench will start from that class (only -p 1 supported)")
 
@@ -155,7 +154,7 @@ class SbftBenchCliCommand : CliktCommand() {
 
         var checkpointReached = checkpointClassName == null
 
-        val fixedMethodId = methodId
+        val targetMethodFqn = methodHrs?.let(::getFqnFromHrs)
 
         for (sbftBench in getBenches()) {
             if (className != null && !sbftBench.classNames.contains(className)) {
@@ -167,7 +166,7 @@ class SbftBenchCliCommand : CliktCommand() {
                 continue
             }
 
-            if (fixedMethodId != null && fixedMethodId.className !in sbftBench.classNames) {
+            if (targetMethodFqn != null && targetMethodFqn !in sbftBench.classNames) {
                 continue
             }
 
@@ -206,7 +205,7 @@ class SbftBenchCliCommand : CliktCommand() {
 
             val fixedClassName = className
             var classNamesToRun = if (fixedClassName != null) listOf(fixedClassName) else sbftBench.classNames
-            classNamesToRun = if (fixedMethodId != null) listOf(fixedMethodId.className) else classNamesToRun
+            classNamesToRun = if (targetMethodFqn != null) listOf(targetMethodFqn) else classNamesToRun
 
             if (parallelismLevel == 1 || classNamesToRun.size == 1) {
                 for ((index, className) in classNamesToRun.withIndex()) {
@@ -238,15 +237,26 @@ class SbftBenchCliCommand : CliktCommand() {
         }
     }
 
+    private fun JcClassOrInterface.selectBenchClasses(): List<JcClassOrInterface> {
+        val result = mutableListOf<JcClassOrInterface>()
+        val stack = ArrayDeque<JcClassOrInterface>()
+        stack.add(this)
+
+        while (stack.isNotEmpty()) {
+            val current = stack.removeFirst()
+            if (!result.contains(current)) {
+                result.add(current)
+                stack.addAll(current.innerClasses)
+            }
+        }
+
+        return result
+    }
+
     // Trying to follow
     // https://github.com/UnitTestBot/UTBotJava/blob/228072f78c12810311622e20d6e18e23a12a24ea/utbot-junit-contest/src/main/kotlin/org/utbot/contest/Contest.kt#L482
-    private fun JcClassOrInterface.selectBenchMethods(visitedClasses: MutableSet<JcClassOrInterface> = mutableSetOf()): List<JcMethod> {
-        visitedClasses.add(this)
-        return declaredMethods.filterNot {
-            it.isAbstract || it.isNative
-        } + innerClasses.filter { it !in visitedClasses }.flatMap {
-            it.selectBenchMethods(visitedClasses)
-        }
+    private fun JcClassOrInterface.selectBenchMethods(): List<JcMethod> {
+        return selectBenchClasses().flatMap { it.declaredMethods.filterNot { it.isAbstract || it.isNative } }
     }
 
     private fun analyzeClass(jcClassName: String, cp: JcClasspath, options: UMachineOptions, jcMachineOptions: JcMachineOptions, statisticsReporter: BenchStatisticsReporter, configId: String) {
@@ -259,9 +269,9 @@ class SbftBenchCliCommand : CliktCommand() {
                 jcMachineOptions
             ).use { machine ->
                 var methodsToExplore = jcClass.selectBenchMethods()
-                val fixedMethodId = methodId
-                if (fixedMethodId != null) {
-                    methodsToExplore = methodsToExplore.filter { it.name == fixedMethodId.methodName }
+                val fixedMethodHrs = methodHrs
+                if (fixedMethodHrs != null) {
+                    methodsToExplore = listOf(methodsToExplore.single { it.name == fixedMethodHrs })
                 }
                 val result = machine.analyze(methodsToExplore, emptyList())
                 statisticsReporter.reportResult(

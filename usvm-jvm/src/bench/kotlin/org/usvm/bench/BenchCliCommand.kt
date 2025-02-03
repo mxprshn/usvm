@@ -22,9 +22,8 @@ import org.jacodb.impl.features.classpaths.JcUnknownClass
 import org.usvm.CoverageZone
 import org.usvm.PathSelectionStrategy
 import org.usvm.UMachineOptions
-import org.usvm.bench.project.MethodId
 import org.usvm.bench.project.Project
-import org.usvm.bench.project.getMethod
+import org.usvm.bench.project.getMethodByHrs
 import org.usvm.machine.JcMachineOptions
 import kotlin.io.path.name
 import kotlin.random.Random
@@ -44,7 +43,7 @@ class BenchCliCommand : CliktCommand() {
     val parallelismLevel by option("-p", help = "Parallelism level (number of threads)")
         .int().default(1)
 
-    val methodId by option("-m", help = "If specified, single method id to execute")
+    val methodHrs by option("-m", help = "If specified, human-readable signature of specific method to run benchmark on")
 
     val saveStatsToMongo by option("--mongo", help = "Save run stats to Mongo database")
         .boolean().default(false)
@@ -93,12 +92,13 @@ class BenchCliCommand : CliktCommand() {
                 projectName
             )
 
-            val fixedMethodId = methodId
-            val methods = if (fixedMethodId == null) {
+            val fixedMethodHrs = methodHrs
+            val methods = if (fixedMethodHrs == null) {
                 project.discoverMethods().toList()
             } else {
-                requireNotNull(project.cpWithApproximations.getMethod(MethodId.decodeFromString(fixedMethodId))) {
-                    "Cannot resolve method with id $fixedMethodId"
+
+                requireNotNull(project.cpWithApproximations.getMethodByHrs(fixedMethodHrs)) {
+                    "Cannot resolve method $fixedMethodHrs"
                 }.let(::listOf)
             }
             if (parallelismLevel == 1 || methods.size == 1) {
